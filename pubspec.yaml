@@ -15,6 +15,9 @@ dependencies:
   flutter_icons: ^1.1.0
   octicons_icon: ^0.0.2
   sticky_headers: ^0.2.0
+  geolocator: ^7.4.0
+  location: ^4.3.0
+  intl: ^0.17.0
 
 dev_dependencies:
   flutter_test:

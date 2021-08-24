@@ -5,6 +5,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_icons/flutter_icons.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:social/widgets/buttons/rounded_icon_button.dart';
+import 'package:location/location.dart';
+// import 'package:geocoder/geocoder.dart';
+import 'package:intl/intl.dart';
 
 import 'home.dart';
 import 'food.dart';
@@ -79,7 +82,7 @@ class _MapUIState extends State<MapUI> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        // render the floating button on widget
+        // render the floating button
         _fabPosition = _initialSheetChildSize * context.size.height;
       });
     });
@@ -91,6 +94,23 @@ class _MapUIState extends State<MapUI> {
 
   void _changeTab(int index) {
     setState(() => _currentIndex = index);
+  }
+
+  Future<void> _currentLocation() async {
+    bool _serviceEnabled;
+    PermissionStatus _permissionGranted;
+    Location location = Location();
+    location.requestService();
+    location.requestPermission();
+
+    _serviceEnabled = await location.serviceEnabled();
+
+    // print(location);
+    final _currentPosition = await location.getLocation();
+    // print('Current location...');
+    print(_currentPosition.longitude);
+    // final GoogleMapController controller = await _controller.future;
+    // controller.animateCamera(CameraUpdate.newCameraPosition(_currentPosition. ));
   }
 
   @override
@@ -158,7 +178,7 @@ class _MapUIState extends State<MapUI> {
               bottom: _fabPosition + _fabPositionPadding,
               right: _fabPositionPadding,
               child: FloatingActionButton(
-                onPressed: () {},
+                onPressed: _currentLocation,
                 backgroundColor: Theme.of(context).primaryColor,
                 mini: true,
                 child: Icon(

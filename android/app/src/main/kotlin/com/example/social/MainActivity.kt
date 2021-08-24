@@ -1,4 +1,4 @@
-package com.example.social
+package com.ryder.karma
 
 import io.flutter.embedding.android.FlutterActivity
 
