@@ -4,14 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_icons/flutter_icons.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:social/widgets/buttons/rounded_icon_button.dart';
 import 'package:location/location.dart';
-// import 'package:geocoder/geocoder.dart';
-import 'package:intl/intl.dart';
 
 import 'home.dart';
 import 'food.dart';
 import 'following.dart';
+import '../../widgets/buttons/rounded_icon_button.dart';
+import '../../widgets/restaurants/restaurant_sheet.dart';
 
 class MapUI extends StatefulWidget {
   @override
@@ -23,18 +22,21 @@ class _MapUIState extends State<MapUI> {
   int _currentIndex = 1;
   String _mapStyle;
   BitmapDescriptor customIcon;
-
-  double _initialSheetChildSize = 0.12;
-  double _dragScrollSheetExtent = 0;
-
+  Set<Marker> _markers = {};
+  Completer<GoogleMapController> _controller = Completer();
+  double _initialExtent = 0.14;
+  double _minExtent = 0.14;
+  double _dragExtent = 0.14;
+  bool _isExpanded = true;
   double _widgetHeight = 0;
   double _fabPosition = 0;
   double _fabPositionPadding = 8;
+  bool _showRestaurantSheet = false;
 
-  List<Widget> _sheets = [
-    Food(),
-    Home(),
-    Following(),
+  final List<String> _titles = [
+    'Food',
+    'Home',
+    'Following',
   ];
 
   final List<BottomNavigationBarItem> _tabs = [
@@ -55,20 +57,18 @@ class _MapUIState extends State<MapUI> {
     ),
   ];
 
-  Completer<GoogleMapController> _controller = Completer();
-
   static final CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(51.48884955183822, -0.14361131274553324),
+    target: LatLng(51.5015489, -0.0932891),
     zoom: 14.4746,
   );
 
-  void setMarker() {
+  void _setMarker() {
     BitmapDescriptor.fromAssetImage(
       ImageConfiguration(
-        size: Size(2, 2),
-        // devicePixelRatio: 2,
+        // size: Size(1, 1),
+        devicePixelRatio: 0.25,
       ),
-      'assets/pin.png',
+      'assets/stjohnbakery.png',
     ).then((d) {
       customIcon = d;
     });
@@ -83,11 +83,12 @@ class _MapUIState extends State<MapUI> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
         // render the floating button
-        _fabPosition = _initialSheetChildSize * context.size.height;
+        _fabPosition = _initialExtent * context.size.height;
+        _dragExtent = _initialExtent;
       });
     });
 
-    setMarker();
+    _setMarker();
 
     super.initState();
   }
@@ -113,17 +114,22 @@ class _MapUIState extends State<MapUI> {
     // controller.animateCamera(CameraUpdate.newCameraPosition(_currentPosition. ));
   }
 
+  void _toggleDraggableSheet() {
+    _initialExtent = !_isExpanded ? _minExtent : _dragExtent;
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
+  }
+
+  void _toggleRestaurantSheet() {
+    setState(() {
+      _showRestaurantSheet = !_showRestaurantSheet;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-
-    final Set<Marker> _markers = [
-      Marker(
-        markerId: MarkerId("marker_1"),
-        position: LatLng(51.48884955183822, -0.14361131274553324),
-        icon: customIcon,
-      ),
-    ].toSet();
+    final height = MediaQuery.of(context).size.height;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -156,6 +162,7 @@ class _MapUIState extends State<MapUI> {
         unselectedIconTheme: IconThemeData(
           color: Colors.grey[400],
         ),
+        unselectedItemColor: Colors.grey[400],
         onTap: (index) {
           _changeTab(index);
         },
@@ -170,10 +177,24 @@ class _MapUIState extends State<MapUI> {
             onMapCreated: (GoogleMapController controller) {
               controller.setMapStyle(_mapStyle);
               _controller.complete(controller);
+
+              setState(() {
+                _markers.add(
+                  Marker(
+                    markerId: MarkerId("marker_1"),
+                    position: LatLng(51.5015489, -0.0932891),
+                    icon: customIcon,
+                    consumeTapEvents: true,
+                    onTap: () {
+                      _toggleRestaurantSheet();
+                    },
+                  ),
+                );
+              });
             },
             markers: _markers,
           ),
-          if (_currentIndex == 1)
+          if (_currentIndex == 1 && !_showRestaurantSheet)
             Positioned(
               bottom: _fabPosition + _fabPositionPadding,
               right: _fabPositionPadding,
@@ -187,51 +208,54 @@ class _MapUIState extends State<MapUI> {
                 ),
               ),
             ),
-          NotificationListener<DraggableScrollableNotification>(
-            onNotification: (DraggableScrollableNotification notification) {
-              setState(() {
-                _widgetHeight = context.size.height;
-                _dragScrollSheetExtent = notification.extent;
+          _showRestaurantSheet
+              ? DraggableScrollableSheet(
+                  initialChildSize: 0.5,
+                  maxChildSize: 0.85,
+                  minChildSize: 0.14,
+                  key: Key(_initialExtent.toString()),
+                  builder: (context, scrollController) =>
+                      RestaurantSheet(scrollController: scrollController),
+                )
+              : NotificationListener<DraggableScrollableNotification>(
+                  onNotification:
+                      (DraggableScrollableNotification notification) {
+                    setState(() {
+                      _widgetHeight = context.size.height;
+                      _dragExtent = notification.extent;
 
-                // Calculate FAB position based on parent widget height and DraggableScrollable position
-                _fabPosition = _dragScrollSheetExtent * (_widgetHeight * 0.9);
-              });
-              return;
-            },
-            child: DraggableScrollableSheet(
-              initialChildSize: _initialSheetChildSize,
-              maxChildSize: 0.8,
-              minChildSize: 0.12,
-              builder: (context, scrollController) => SingleChildScrollView(
-                controller: scrollController,
-                physics: ClampingScrollPhysics(),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(25),
-                      topLeft: Radius.circular(25),
+                      // Calculate FAB position based on parent widget height and DraggableScrollable position
+                      _fabPosition = _dragExtent * (_widgetHeight * 0.9);
+                    });
+                    return;
+                  },
+                  child: DraggableScrollableActuator(
+                    child: DraggableScrollableSheet(
+                      initialChildSize: _dragExtent,
+                      maxChildSize: 0.85,
+                      minChildSize: 0.14,
+                      key: Key(_initialExtent.toString()),
+                      builder: (context, scrollController) => ClipRRect(
+                        borderRadius: BorderRadius.only(
+                          topRight: Radius.circular(20),
+                          topLeft: Radius.circular(20),
+                        ),
+                        child: IndexedStack(
+                          index: _currentIndex,
+                          children: [
+                            Food(
+                                scrollController: scrollController,
+                                callback: () {
+                                  _toggleDraggableSheet();
+                                }),
+                            Home(scrollController: scrollController),
+                            Following(scrollController: scrollController),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      Divider(
-                        thickness: 2,
-                        color: Colors.grey[700],
-                        endIndent: width / 2.3,
-                        indent: width / 2.3,
-                        height: 0,
-                      ),
-                      const SizedBox(height: 8),
-                      _sheets[_currentIndex],
-                    ],
-                  ),
                 ),
-              ),
-            ),
-          ),
         ],
       ),
     );
